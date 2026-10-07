@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>시프티</title>
+        <script>
+            // 로그인 세션이 없으면 본문을 그리기 전에 로그인 페이지로 보낸다.
+            (function () {
+                try {
+                    var raw = sessionStorage.getItem("shiftly.session");
+                    var s = raw ? JSON.parse(raw) : null;
+                    if (!s || !s.username || Number(s.exp) <= Date.now()) {
+                        sessionStorage.removeItem("shiftly.session");
+                        window.location.replace("./index.html");
+                    }
+                } catch (e) {
+                    window.location.replace("./index.html");
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <script
+            src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+            defer
+        ></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"
+            defer
+        ></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+            defer
+        ></script>
+    </head>
+    <body>
+        <div class="page">
+            <section class="toolbar card">
+                <div class="toolbar-row toolbar-main-row">
+                    <div class="toolbar-group">
+                        <label>
+                            계정 역할
+                            <select id="roleSelect" aria-label="계정 역할 선택">
+                                <option value="team2">외식사업 2팀</option>
+                                <option value="team3">외식사업 3팀</option>
+                                <option value="admin">관리자(공통)</option>
+                                <option value="admin-team2">관리자(2팀)</option>
+                                <option value="admin-team3">관리자(3팀)</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            기준 월
+                            <input type="month" id="monthInput" />
+                        </label>
+
+                        <label>
+                            확대 배율
+                            <select id="zoomSelect" aria-label="확대 배율 선택">
+                                <option value="80">80%</option>
+                                <option value="90">90%</option>
+                                <option value="100">100%</option>
+                                <option value="110">110%</option>
+                                <option value="120" selected>120%</option>
+                            </select>
+                        </label>
+
+                        <button id="applyViewBtn" type="button">
+                            화면 갱신
+                        </button>
+                    </div>
+
+                    <div class="toolbar-group toolbar-actions-group">
+                        <span
+                            id="monthCloseStatusBadge"
+                            class="badge close-status-badge"
+                            >진행</span
+                        >
+                        <button
+                            id="closeMonthBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            마감
+                        </button>
+                        <button
+                            id="cancelCloseMonthBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            마감 취소
+                        </button>
+                        <button
+                            id="toggleSummaryBtn"
+                            type="button"
+                            class="secondary-btn toolbar-toggle-btn"
+                        >
+                            AL 집계 열 표시
+                        </button>
+                        <button id="openCodeManageBtn" type="button">
+                            근무 코드
+                        </button>
+                        <button id="openEmployeeManageBtn" type="button">
+                            근무자
+                        </button>
+                        <button id="exportExcelBtn" type="button">
+                            엑셀 내보내기
+                        </button>
+                        <button id="scheduleImportBtn" type="button">
+                            엑셀 가져오기(조리)
+                        </button>
+                        <button id="serviceScheduleImportBtn" type="button">
+                            엑셀 가져오기(서비스)
+                        </button>
+                        <button id="occImportBtn" type="button">
+                            OCC(%) 가져오기
+                        </button>
+                        <span id="loginUserBadge" class="badge login-user-badge"></span>
+                        <button
+                            id="logoutBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            로그아웃
+                        </button>
+                    </div>
+                </div>
+
+                <div class="toolbar-row event-editor">
+                    <strong>이벤트</strong>
+                    <textarea id="eventTitleInput" rows="2"></textarea>
+                    <label>
+                        시작일
+                        <input
+                            id="eventStartInput"
+                            type="number"
+                            min="1"
+                            max="31"
+                            placeholder="DD"
+                        />
+                    </label>
+                    <label>
+                        종료일
+                        <input
+                            id="eventEndInput"
+                            type="number"
+                            min="1"
+                            max="31"
+                            placeholder="DD"
+                        />
+                    </label>
+                    <label>
+                        이벤트 색상
+                        <input
+                            id="eventColorInput"
+                            type="color"
+                            value="#fff3b0"
+                        />
+                    </label>
+                    <button id="addEventBtn" type="button">이벤트 추가</button>
+                    <button
+                        id="clearEventBtn"
+                        type="button"
+                        class="secondary-btn"
+                    >
+                        이벤트 초기화
+                    </button>
+                    <div class="toolbar-group event-editor-hide-day-group">
+                        <label class="hide-day-control">
+                            숨길 날짜
+                            <input
+                                id="hideDayInput"
+                                type="text"
+                                placeholder="예: 5,12,13"
+                            />
+                        </label>
+                        <button
+                            id="applyHideDayBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            날짜 숨김 적용
+                        </button>
+                        <button
+                            id="resetHideDayBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            숨김 초기화
+                        </button>
+                        <span
+                            id="hideDayPipeSep"
+                            class="toolbar-inline-sep"
+                            aria-hidden="true"
+                            >|</span
+                        >
+                        <button
+                            id="assignOffDayBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            휴무일 지정
+                        </button>
+                    </div>
+                </div>
+
+                <div class="event-list-wrap">
+                    <div
+                        id="eventList"
+                        class="event-list"
+                        aria-label="등록된 이벤트 목록"
+                    ></div>
+                    <button
+                        id="eventListPrevBtn"
+                        type="button"
+                        class="secondary-btn event-list-nav-btn"
+                        aria-label="이전 이벤트 보기"
+                    >
+                        ◀
+                    </button>
+                    <button
+                        id="eventListNextBtn"
+                        type="button"
+                        class="secondary-btn event-list-nav-btn"
+                        aria-label="다음 이벤트 보기"
+                    >
+                        ▶
+                    </button>
+                </div>
+                <div
+                    id="hiddenDayChipRow"
+                    class="toolbar-row toolbar-hidden-chip-row"
+                >
+                    <div
+                        id="hiddenDayChipList"
+                        class="hidden-day-chip-list"
+                        aria-label="숨긴 날짜 목록"
+                    ></div>
+                </div>
+
+                <div class="toolbar-row secondary">
+                    <span id="permissionBadge" class="badge"
+                        >권한 확인 중...</span
+                    >
+                    <span id="holidayLegend" class="legend"
+                        >공휴일: 빨간 헤더</span
+                    >
+                    <span id="readonlyLegend" class="legend"
+                        >읽기 전용 셀: 회색 잠금</span
+                    >
+                </div>
+            </section>
+
+            <main class="grid-section card">
+                <div class="table-wrap">
+                    <table
+                        id="shiftTable"
+                        class="shift-table"
+                        aria-label="직원 시프트 테이블"
+                    ></table>
+                </div>
+            </main>
+        </div>
+
+        <dialog id="codeDialog">
+            <form method="dialog" class="dialog-body modal-shell">
+                <header class="modal-header">
+                    <h2>근무 코드 관리</h2>
+                    <button
+                        type="button"
+                        class="modal-close-btn"
+                        data-close-picker
+                        aria-label="닫기"
+                    >
+                        X
+                    </button>
+                </header>
+                <p id="codeDialogNotice" class="dialog-notice"></p>
+                <div id="codeList" class="code-list"></div>
+                <div class="code-add-row">
+                    <input
+                        id="newCodeInput"
+                        type="text"
+                        maxlength="8"
+                        placeholder="예: TR-E"
+                    />
+                    <input
+                        id="newCodeColorInput"
+                        type="color"
+                        value="#fff176"
+                    />
+                    <button id="addCodeBtn" type="button">코드 추가</button>
+                </div>
+                <menu class="modal-actions">
+                    <button value="cancel">닫기</button>
+                </menu>
+            </form>
+        </dialog>
+
+        <dialog id="employeeDialog">
+            <form
+                method="dialog"
+                class="dialog-body modal-shell employee-dialog-body"
+            >
+                <header class="modal-header">
+                    <h2>근무자 관리</h2>
+                    <button
+                        type="button"
+                        class="modal-close-btn"
+                        data-close-picker
+                        aria-label="닫기"
+                    >
+                        X
+                    </button>
+                </header>
+                <p id="employeeDialogNotice" class="dialog-notice"></p>
+
+                <div class="employee-add-row">
+                    <select
+                        id="newEmployeeTeamSelect"
+                        aria-label="신규 근무자 팀 선택"
+                    >
+                        <option value="team2">외식사업 2팀</option>
+                        <option value="team3">외식사업 3팀</option>
+                    </select>
+                    <select
+                        id="newEmployeeGroupSelect"
+                        aria-label="신규 근무자 그룹 선택"
+                    >
+                        <option value="common">공통</option>
+                        <option value="bk">오전조 | BK(A~E)</option>
+                        <option value="dn">오후조 | DN(F~I)</option>
+                    </select>
+                    <input
+                        id="newEmployeeNameInput"
+                        type="text"
+                        maxlength="30"
+                        placeholder="근무자 이름"
+                    />
+                    <select
+                        id="newEmployeeTypeSelect"
+                        aria-label="신규 근무자 고용형태 선택"
+                    >
+                        <option value="REGULAR">정규직(REGULAR)</option>
+                        <option value="CONTRACT">계약직(CONTRACT)</option>
+                        <option value="NON_REGULAR">
+                            비정규직(NON_REGULAR)
+                        </option>
+                    </select>
+                    <label>
+                        입사일
+                        <input id="newEmployeeHireDateInput" type="date" />
+                    </label>
+                    <label>
+                        재계약일
+                        <input
+                            id="newEmployeeRecontractDateInput"
+                            type="date"
+                        />
+                    </label>
+                    <select
+                        id="newEmployeePositionSelect"
+                        aria-label="신규 근무자 포지션 선택"
+                    ></select>
+                </div>
+
+                <div class="employee-filter-row">
+                    <input
+                        id="employeeSearchInput"
+                        type="text"
+                        placeholder="근무자 이름 검색"
+                    />
+                    <select
+                        id="employeeSortSelect"
+                        aria-label="근무자 정렬 선택"
+                    >
+                        <option value="team">팀별 정렬</option>
+                        <option value="name">이름순 정렬</option>
+                    </select>
+                    <label class="employee-filter-check">
+                        <input id="employeeShowResignedCheck" type="checkbox" />
+                        퇴작자(퇴사일 표시/수정)
+                    </label>
+                </div>
+                <div class="employee-add-actions">
+                    <button id="addEmployeeBtn" type="button">
+                        근무자 추가
+                    </button>
+                    <button
+                        id="deleteSelectedEmployeeBtn"
+                        type="button"
+                        class="secondary-btn"
+                    >
+                        근무자 삭제
+                    </button>
+                </div>
+
+                <div class="employee-table-wrap">
+                    <table
+                        class="employee-manage-table"
+                        aria-label="근무자 관리 표"
+                    >
+                        <thead>
+                            <tr>
+                                <th>::</th>
+                                <th>팀</th>
+                                <th>그룹</th>
+                                <th>이름</th>
+                                <th>잔여 연차</th>
+                                <th>포지션</th>
+                                <th id="employeeResignationHeader" hidden>
+                                    퇴사일
+                                </th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody"></tbody>
+                    </table>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog id="employeeEditDialog">
+            <form
+                method="dialog"
+                class="dialog-body modal-shell employee-edit-dialog-body"
+            >
+                <header class="modal-header">
+                    <h2>근무자 정보 수정</h2>
+                    <button
+                        type="button"
+                        class="modal-close-btn"
+                        data-close-picker
+                        aria-label="닫기"
+                    >
+                        X
+                    </button>
+                </header>
+                <p id="employeeEditNotice" class="dialog-notice"></p>
+                <input id="employeeEditIdInput" type="text" hidden />
+                <div class="employee-edit-grid">
+                    <label>
+                        팀
+                        <select
+                            id="employeeEditTeamSelect"
+                            aria-label="근무자 수정 팀 선택"
+                        >
+                            <option value="team2">외식사업 2팀</option>
+                            <option value="team3">외식사업 3팀</option>
+                        </select>
+                    </label>
+                    <label>
+                        그룹
+                        <select
+                            id="employeeEditGroupSelect"
+                            aria-label="근무자 수정 그룹 선택"
+                        >
+                            <option value="common">공통</option>
+                            <option value="bk">오전조 | BK(A~E)</option>
+                            <option value="dn">오후조 | DN(F~I)</option>
+                        </select>
+                    </label>
+                    <label>
+                        고용형태
+                        <select
+                            id="employeeEditTypeSelect"
+                            aria-label="근무자 수정 고용형태 선택"
+                        >
+                            <option value="REGULAR">정규직(REGULAR)</option>
+                            <option value="CONTRACT">계약직(CONTRACT)</option>
+                            <option value="NON_REGULAR">
+                                비정규직(NON_REGULAR)
+                            </option>
+                        </select>
+                    </label>
+                    <label>
+                        이름
+                        <input
+                            id="employeeEditNameInput"
+                            type="text"
+                            maxlength="30"
+                        />
+                    </label>
+                    <label>
+                        입사일
+                        <input id="employeeEditHireDateInput" type="date" />
+                    </label>
+                    <label>
+                        재계약일
+                        <input
+                            id="employeeEditRecontractDateInput"
+                            type="date"
+                        />
+                    </label>
+                    <label>
+                        퇴사일
+                        <input
+                            id="employeeEditResignationDateInput"
+                            type="date"
+                        />
+                    </label>
+                    <label>
+                        포지션
+                        <select
+                            id="employeeEditPositionSelect"
+                            aria-label="근무자 수정 포지션 선택"
+                        ></select>
+                    </label>
+                    <label>
+                        포지션 배경색
+                        <input
+                            id="employeeEditPositionColorInput"
+                            type="color"
+                            value="#ffffff"
+                        />
+                    </label>
+                </div>
+                <menu class="modal-actions">
+                    <button id="employeeEditSaveBtn" type="button">저장</button>
+                    <button
+                        id="employeeEditDeleteBtn"
+                        type="button"
+                        class="secondary-btn"
+                    >
+                        삭제
+                    </button>
+                </menu>
+            </form>
+        </dialog>
+
+        <dialog id="leaveManageDialog">
+            <form
+                method="dialog"
+                class="dialog-body modal-shell leave-dialog-body"
+            >
+                <header class="modal-header">
+                    <h2>직원 별 연차 관리</h2>
+                    <button
+                        type="button"
+                        class="modal-close-btn"
+                        data-close-picker
+                        aria-label="닫기"
+                    >
+                        X
+                    </button>
+                </header>
+                <input id="leaveEmployeeIdInput" type="text" hidden />
+                <label>
+                    직원
+                    <input id="leaveEmployeeNameInput" type="text" disabled />
+                </label>
+                <label>
+                    전월 잔여(AL)
+                    <input
+                        id="leaveBalanceInput"
+                        type="number"
+                        min="0"
+                        step="0.5"
+                    />
+                </label>
+                <label class="checkbox-row">
+                    <input id="leaveSeniorityCheck" type="checkbox" checked />
+                    근속 가산 적용(정규/계약직)
+                </label>
+                <menu class="modal-actions">
+                    <button id="leaveSaveBtn" type="button">저장</button>
+                </menu>
+            </form>
+        </dialog>
+
+        <dialog id="alUsageDialog">
+            <form
+                method="dialog"
+                class="dialog-body modal-shell leave-dialog-body usage-dialog-body"
+            >
+                <header class="modal-header">
+                    <h2>AL 사용 내역</h2>
+                    <button
+                        type="button"
+                        class="modal-close-btn"
+                        data-close-picker
+                        aria-label="닫기"
+                    >
+                        X
+                    </button>
+                </header>
+                <label>
+                    직원
+                    <input id="alUsageEmployeeNameInput" type="text" disabled />
+                </label>
+                <label>
+                    사용 개수
+                    <input id="alUsageCountInput" type="text" disabled />
+                </label>
+                <label>
+                    사용 일자
+                    <div id="alUsageDateList" class="al-usage-date-list">-</div>
+                </label>
+                <menu class="modal-actions">
+                    <button value="cancel">닫기</button>
+                </menu>
+            </form>
+        </dialog>
+
+        <input id="occFileInput" type="file" accept=".xlsx,.xls" hidden />
+        <input id="scheduleFileInput" type="file" accept=".xlsx,.xls" hidden />
+        <input
+            id="serviceScheduleFileInput"
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+        />
+
+        <script src="./supabase.runtime.js"></script>
+        <script type="module" src="./js/main.js"></script>
+    </body>
+</html>

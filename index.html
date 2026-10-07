@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="robots" content="noindex, nofollow" />
+        <title>시프티 - 로그인</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+    </head>
+    <body>
+        <div class="login-gate">
+            <form id="loginForm" class="login-card" autocomplete="on">
+                <h1 class="login-title">시프티</h1>
+                <p class="login-subtitle">직원 시프트 관리</p>
+                <label>
+                    아이디
+                    <input
+                        id="loginUsername"
+                        type="text"
+                        name="username"
+                        autocomplete="username"
+                        required
+                    />
+                </label>
+                <label>
+                    비밀번호
+                    <input
+                        id="loginPassword"
+                        type="password"
+                        name="password"
+                        autocomplete="current-password"
+                        required
+                    />
+                </label>
+                <p id="loginError" class="login-error" role="alert"></p>
+                <button id="loginSubmitBtn" type="submit">로그인</button>
+            </form>
+        </div>
+        <script type="module" src="./js/login.js"></script>
+    </body>
+</html>
