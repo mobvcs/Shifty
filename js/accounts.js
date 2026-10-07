@@ -17,7 +17,7 @@ export const ACCOUNTS = [
   {
     username: "admin",
     level: "admin",
-    hash: "c806a142435dce118d5d42a06f22ee4c2acea3198d1c0974b4aaa3a2765cf8a6",
+    hash: "e253c15c9fcbe406fdcc1ea8419a0a55bd1c2864870b9033e0631564ca570e56",
   },
   {
     username: "roche",
